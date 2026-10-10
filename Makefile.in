@@ -7,7 +7,7 @@ SUBDIR		= vendor src tests doc
 DISTDIR		= dist
 DISTVER		=
 DISTTAG		= v${DISTVER}
-DISTNAME	= MacPorts-${DISTVER}
+DISTNAME	= TigerPorts-${DISTVER}
 DISTGPGID	=
 
 
@@ -36,7 +36,7 @@ install::
 	$(INSTALL) -d -o "${DSTUSR}" -g "${DSTGRP}" -m "${DSTMODE}" "$(DESTDIR)${localstatedir}/macports/cache"
 	$(INSTALL) -d -o "${DSTUSR}" -g "${DSTGRP}" -m "${DSTMODE}" "$(DESTDIR)${datadir}/macports/"
 	$(INSTALL)    -o "${DSTUSR}" -g "${DSTGRP}" -m 444 setupenv.bash  "$(DESTDIR)${datadir}/macports/"
-	$(INSTALL)    -o "${DSTUSR}" -g "${DSTGRP}" -m 444 $(srcdir)/macports-pubkey.pem  "$(DESTDIR)${datadir}/macports/"
+	$(INSTALL)    -o "${DSTUSR}" -g "${DSTGRP}" -m 444 $(srcdir)/tigerports-pubkey.pem  "$(DESTDIR)${datadir}/macports/"
 	$(INSTALL) -d -o "${DSTUSR}" -g "${DSTGRP}" -m "${DSTMODE}" "$(DESTDIR)${datadir}/macports/keys/base"
 	$(INSTALL) -d -o "${DSTUSR}" -g "${DSTGRP}" -m "${DSTMODE}" "$(DESTDIR)${datadir}/macports/keys/ports"
 	$(INSTALL) -d -o "${DSTUSR}" -g "${DSTGRP}" -m "${DSTMODE}" "$(DESTDIR)${datadir}/macports/keys/archives"
@@ -85,6 +85,14 @@ ifeq (@NO_ROOTPRIVS@,)
                         echo "Failed to update home directory!" ; \
                         echo "Please ask the system administrator to manually run:" ; \
                         echo "    ${DSCL} -q . -create \"/Users/${RUNUSR}\" NFSHomeDirectory \"${localstatedir}/macports/home\"" ; \
+                    fi ; \
+                fi ; \
+                if test "@OS_MAJOR@" -eq 8 -a `id -u` -eq 0; then \
+                    GID=`${DSCL} -q . -read "/Groups/${RUNUSR}" PrimaryGroupID | /usr/bin/awk '{print $$2}'` ; \
+                    if test "`${DSCL} -q . -read "/Users/${RUNUSR}" PrimaryGroupID 2>/dev/null | /usr/bin/awk '{print $$2}'`" != "$$GID"; then \
+                        echo "Fixing PrimaryGroupID for user \"${RUNUSR}\"" ; \
+                        ${DSCL} -q . -create "/Users/${RUNUSR}" PrimaryGroupID $$GID ; \
+                        ${DSCL} -q . -create "/Users/${RUNUSR}" RealName MacPorts ; \
                     fi ; \
                 fi ; \
             fi ; \

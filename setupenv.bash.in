@@ -43,11 +43,11 @@ function export_path() {
     done
 
     if [ -n "$binpath" ]; then
-        binpath+=":"
+        binpath="${binpath}:"
     fi
 
     if [ -n "$sbinpath" ]; then
-        sbinpath+=":"
+        sbinpath="${sbinpath}:"
     fi
 
     export PATH="${binpath}${sbinpath}${PATH}"
@@ -69,7 +69,7 @@ function export_manpath() {
     done
 
     if [ -n "$mpath" ]; then
-        mpath+=":"
+        mpath="${mpath}:"
     fi
 
     export MANPATH="${mpath}${MANPATH}"

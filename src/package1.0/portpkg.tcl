@@ -51,7 +51,7 @@ default package.destpath {${workpath}}
 default package.resources {${workpath}/pkg_resources}
 default package.scripts  {${workpath}/pkg_scripts}
 # Need productbuild to make flat packages really work
-default package.flat     {[expr {[vercmp $macosx_deployment_target 10.6] >= 0}]}
+default package.flat     {[expr {[vercmp $macosx_deployment_target 10.7] >= 0}]}
 default pkg.asroot no
 
 set_ui_prefix
@@ -60,12 +60,12 @@ proc portpkg::pkg_start {args} {
     global packagemaker_path xcodeversion porturl \
            package.resources package.scripts package.flat \
            subport version revision description long_description \
-           homepage workpath
+           homepage workpath os.major
     variable packagemaker
     variable pkgbuild
     variable language
 
-    if {[catch {findBinary pkgbuild /usr/bin/pkgbuild} pkgbuild]} {
+    if {(${os.arch} eq "powerpc") || [catch {findBinary pkgbuild /usr/bin/pkgbuild} pkgbuild]} {
         set pkgbuild ""
     }
     if {$pkgbuild eq "" || !${package.flat}} {
@@ -101,7 +101,7 @@ proc portpkg::pkg_start {args} {
     write_welcome_html ${package.resources}/${language}.lproj/Welcome.html $subport $version $revision $pkg_long_description $pkg_description $pkg_homepage
     file copy -force -- [getportresourcepath $porturl "port1.0/package/background.tiff"] ${package.resources}/${language}.lproj/background.tiff
 
-    if {${package.flat}} {
+    if {${package.flat} && ${os.major} >= 9} {
         write_distribution "${workpath}/Distribution" $subport $version $revision
     }
 }
@@ -118,7 +118,7 @@ proc portpkg::pkg_main {args} {
 
 proc portpkg::package_pkg {portname portepoch portversion portrevision} {
     global UI_PREFIX destpath workpath prefix description \
-        package.flat package.destpath portpath os.major \
+        package.flat package.destpath portpath os.arch os.major \
         package.resources package.scripts \
         pkg_post_unarchive_deletions
     variable packagemaker
@@ -154,6 +154,7 @@ proc portpkg::package_pkg {portname portepoch portversion portrevision} {
 
     set using_pkgbuild [expr {$pkgbuild ne "" && ${package.flat}}]
     if {$using_pkgbuild || [file exists "$packagemaker"]} {
+      if {${os.major} >= 9} {
         if {${package.flat}} {
             set pkgtarget "10.5"
             set pkgresources " --scripts [shellescape ${package.scripts}]"
@@ -185,7 +186,7 @@ proc portpkg::package_pkg {portname portepoch portversion portrevision} {
         ui_debug "Running command line: $cmdline"
         system $cmdline
 
-        if {${package.flat} && ${os.major} >= 10} {
+        if {${package.flat} && ${os.major} >= 10 && ${os.arch} ne "powerpc"} {
             # the package we just built is just a component
             set componentpath "[file rootname ${pkgpath}]-component.pkg"
             file rename -force ${pkgpath} ${componentpath}
@@ -195,6 +196,11 @@ proc portpkg::package_pkg {portname portepoch portversion portrevision} {
             ui_debug "Running command line: $cmdline"
             system $cmdline
         }
+      } else {
+            write_info_plist ${workpath}/Info.plist $portname $portversion $portrevision
+            write_description_plist ${workpath}/Description.plist $portname $portversion $description
+            system "[shellescape $packagemaker] -build -f [shellescape ${destpath}] -p [shellescape ${pkgpath}] -r [shellescape ${package.resources}] -i [shellescape ${workpath}/Info.plist] -d [shellescape ${workpath}/Description.plist]"
+      }
 
         file delete ${workpath}/Info.plist \
                     ${workpath}/PackageInfo \

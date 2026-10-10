@@ -72,15 +72,10 @@ proc selfupdate::get_current_version {mp_source_path} {
         set release_version_urls [list]
         if {[can_use_https github]} {
             lappend release_version_urls \
-                "https://raw.githubusercontent.com/macports/macports-base/master/config/RELEASE_URL"
-        }
-        if {[can_use_https letsencrypt]} {
-            lappend release_version_urls \
-                "https://distfiles.macports.org/MacPorts/RELEASE_URL" \
-                "https://trac.macports.org/export/master/macports-base/config/RELEASE_URL"
+                "https://raw.githubusercontent.com/alex-free/tigerports-base/master/config/RELEASE_URL"
         } else {
             lappend release_version_urls \
-                "http://distfiles.macports.org/MacPorts/RELEASE_URL"
+                "http://tigerports.com/macports/distfiles/MacPorts/RELEASE_URL"
         }
     }
 
@@ -171,14 +166,10 @@ proc selfupdate::download_source {mp_source_path macports_version_new} {
         set release_urls [list]
         if {[can_use_https github]} {
             lappend release_urls \
-                "https://github.com/macports/macports-base/releases/download/v{version}/MacPorts-{version}.tar.bz2"
-        }
-        if {[can_use_https letsencrypt]} {
-            lappend release_urls \
-                "https://distfiles.macports.org/MacPorts/MacPorts-{version}.tar.bz2"
+                "https://github.com/alex-free/tigerports-base/releases/download/v{version}/TigerPorts-{version}.tar.bz2"
         } else {
             lappend release_urls \
-                "http://distfiles.macports.org/MacPorts/MacPorts-{version}.tar.bz2"
+                "http://tigerports.com/macports/distfiles/MacPorts/TigerPorts-{version}.tar.bz2"
         }
     }
 
@@ -434,11 +425,28 @@ proc selfupdate::install {source} {
     }
     ui_debug "Permissions OK"
 
-    set configure_args [list \
-                        --prefix=$prefix \
-                        --with-install-user=$owner \
-                        --with-install-group=$group \
-                        --with-directory-mode=$perms]
+    # TODO: should allow for builds without bootstrap.
+    if {$os_major == 8} {
+
+        set configure_args [list \
+                            --prefix=$prefix \
+                            --with-install-user=$owner \
+                            --with-install-group=$group \
+                            --with-directory-mode=$perms \
+                            --with-curlprefix=$prefix/bootstrap \
+                            --with-gnumake=$prefix/bootstrap/bin/make \
+                            --with-make=$prefix/bootstrap/bin/make \
+                            --with-bzip2_bin=$prefix/bootstrap/bin/bzip2 \
+                            --with-tar=$prefix/bootstrap/bin/bsdtar \
+                            --with-gnutar=$prefix/bootstrap/bin/tar]
+    } else {
+        set configure_args [list \
+                            --prefix=$prefix \
+                            --with-curlprefix=$prefix/bootstrap \
+                            --with-install-user=$owner \
+                            --with-install-group=$group \
+                            --with-directory-mode=$perms]
+    }
 
     # too many users have an incompatible readline in /usr/local, see ticket #10651
     if {$os_platform ne "darwin" || $prefix eq "/usr/local"

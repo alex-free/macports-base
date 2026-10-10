@@ -86,10 +86,11 @@ proc portconfigure::should_add_stdlib {} {
         return 1
     }
     # GCC also supports -stdlib starting with GCC 10 (and devel), but
-    # not with PPC builds
-    global configure.build_arch
+    # not with PPC builds (or i386 builds lower then 10.7)
+    global configure.build_arch os.major
     if {[string match *g*-mp-* ${configure.cxx}]
-            && ${configure.build_arch} ni {ppc ppc64}} {
+            && ${configure.build_arch} ni {ppc ppc64 i386}
+            && ${os.major} >= 11} {
         # Do not pass stdlib to gcc if it is MacPorts custom macports-libstdc++ setting
         # as gcc does not uderstand this. Instead do nothing, which means gcc will
         # default to using its own libstdc++, which is in fact what we mean by
@@ -389,6 +390,7 @@ proc portconfigure::configure_start {args} {
         {^macports-mpich-gcc-(\d+(?:\.\d+)?)$}     {MacPorts MPICH Wrapper for GCC %s}
         {^macports-openmpi-gcc-(\d+(?:\.\d+)?)$}   {MacPorts Open MPI Wrapper for GCC %s}
         {^macports-(clang|gcc)-devel$}             {MacPorts %s Development}
+        {^macports-gcc-powerpc$}                   {MacPorts GCC Development for PowerPC}
     }
     foreach {re fmt} $valid_compilers {
         if {[set matches [regexp -inline $re $compiler]] ne ""} {
@@ -565,6 +567,11 @@ proc portconfigure::configure_get_sdkroot {sdk_version} {
     # This is only relevant for macOS
     if {${os.platform} ne "darwin"} {
         return {}
+    }
+
+    # Special hack for Tiger/ppc, since the system libraries do not contain intel slices
+    if {${os.arch} eq "powerpc" && $macos_version_major eq "10.4" && [variant_exists universal] && [variant_isset universal]} {
+        return ${developer_dir}/SDKs/MacOSX10.4u.sdk
     }
 
     # Use the DevSDK (eg: /usr/include) if present and the requested SDK version matches the host version
@@ -761,6 +768,7 @@ proc portconfigure::compiler_port_name {compiler} {
         {^macports-(mpich|openmpi|mpich-devel|openmpi-devel)-gcc-(\d+)(?:\.(\d+))?$}  {%s-gcc%s%s}
         {^macports-g95$}                                                              {g95}
         {^macports-(clang|gcc)-devel$}                                                {%s-devel}
+        {^macports-gcc-powerpc$}                                                      {gcc-powerpc}
     }
     foreach {re fmt} $valid_compiler_ports {
         if {[set matches [regexp -inline $re $compiler]] ne ""} {
@@ -1235,6 +1243,7 @@ proc portconfigure::get_apple_compilers_os_version {} {
 }
 # utility procedure: get Clang compilers based on os.major
 proc portconfigure::get_clang_compilers {} {
+    return
     global os.major os.platform porturl
     set compilers [list]
     set compiler_file [getportresourcepath $porturl "port1.0/compilers/clang_compilers.tcl"]
@@ -1301,14 +1310,22 @@ proc portconfigure::get_gcc_compilers {} {
     } else {
         ui_debug "gcc_compilers.tcl not found in ports tree, using built-in selections"
 
-        # GCC 10 and above on OSX10.6+
+        # GCC 16 on all systems
+        lappend compilers macports-gcc-16 macports-gcc-14
+
+        # GCC 11 to GCC 13 on OSX10.6+
         if {${os.major} >= 10 || [option os.platform] ne "darwin"} {
-            lappend compilers macports-gcc-13 macports-gcc-12 macports-gcc-11 macports-gcc-10
+            lappend compilers macports-gcc-13 macports-gcc-12 macports-gcc-11
         }
 
-        # GCC 9 and older only on OSX10.10 and older
+        # GCC 10 on all systems
+        lappend compilers macports-gcc-10
+
+        # GCC 8 and 9 and older on OSX 10.7 to 10.10
+        # GCC 7 or older on OSX 10.6 or older
+        # https://trac.macports.org/ticket/65472
         if {${os.major} < 15} {
-            if {${os.major} >= 10} {
+            if {${os.major} >= 11} {
                 lappend compilers macports-gcc-9 macports-gcc-8
             }
             lappend compilers macports-gcc-7 macports-gcc-6 macports-gcc-5
@@ -1316,6 +1333,11 @@ proc portconfigure::get_gcc_compilers {} {
 
         if {${os.major} >= 10} {
             lappend compilers macports-gcc-devel
+        }
+
+        global os.arch
+        if {${os.arch} eq "powerpc"} {
+            lappend compilers macports-gcc-powerpc
         }
     }
     return ${compilers}
@@ -1603,6 +1625,17 @@ proc portconfigure::configure_get_compiler {type {compiler {}}} {
                 f90     { return ${prefix_frozen}/bin/gfortran${suffix} }
             }
         }
+    } elseif {$compiler eq "macports-gcc-powerpc"} {
+        switch $type {
+            cc      -
+            objc    { return ${prefix_frozen}/bin/gcc-mp-powerpc }
+            cxx     -
+            objcxx  { return ${prefix_frozen}/bin/g++-mp-powerpc }
+            cpp     { return ${prefix_frozen}/bin/cpp-mp-powerpc }
+            fc      -
+            f77     -
+            f90     { return ${prefix_frozen}/bin/gfortran-mp-powerpc }
+        }
     } elseif {$compiler eq "macports-llvm-gcc-4.2"} {
         switch $type {
             cc      -
@@ -1692,7 +1725,7 @@ options configure.compiler.add_deps
 default configure.compiler.add_deps yes
 # helper function to add dependencies for a given compiler
 proc portconfigure::add_compiler_port_dependencies {compiler} {
-    global os.major porturl
+    global os.major os.arch porturl
 
     set compiler_port [portconfigure::compiler_port_name ${compiler}]
     if {$compiler eq "apple-gcc-4.0"} {
@@ -1727,13 +1760,9 @@ proc portconfigure::add_compiler_port_dependencies {compiler} {
 
                 # GCC version providing the primary runtime
                 # Note settings here *must* match those in the lang/libgcc port and compilers PG
-                if {[option os.platform] eq "darwin" && [option os.major] < 10} {
-                    set gcc_main_version 7
-                } else {
-                    set gcc_main_version 13
-                }
+                set gcc_main_version 14
 
-                # compiler links against libraries in libgcc\d* and/or libgcc-devel
+                # compiler links against libraries in libgcc\d* and/or libgcc-*
                 if {[vercmp ${gcc_version} 4.6] < 0} {
                     set libgccs [list path:share/doc/libgcc/README:libgcc port:libgcc45]
                 } elseif {[vercmp ${gcc_version} 7] < 0} {
@@ -1743,7 +1772,7 @@ proc portconfigure::add_compiler_port_dependencies {compiler} {
                 } else {
                     # Using primary GCC version
                     # Do not depend directly on primary runtime port, as implied by libgcc
-                    # and doing so prevents libgcc-devel being used as an alternative.
+                    # and doing so prevents libgcc-* being used as an alternative.
                     set libgccs [list path:share/doc/libgcc/README:libgcc]
                 }
             }
@@ -1761,9 +1790,15 @@ proc portconfigure::add_compiler_port_dependencies {compiler} {
                 depends_lib-append "path:lib/libgcc/libgcc_s.1.dylib:libgcc"
             } elseif {${configure.cxx_stdlib} eq "libc++" && ${os.major} < 11} {
                 # libc++ does not exist on these systems
-                ui_debug "Adding depends_lib libcxx"
-                depends_lib-delete "port:libcxx"
-                depends_lib-append "port:libcxx"
+		if {${os.arch} eq "powerpc"} {
+                    ui_debug "Adding depends_lib libcxx-powerpc"
+                    depends_lib-delete "port:libcxx-powerpc"
+                    depends_lib-append "port:libcxx-powerpc"
+		} else {
+                    ui_debug "Adding depends_lib libcxx"
+                    depends_lib-delete "port:libcxx"
+                    depends_lib-append "port:libcxx"
+                }
             }
             if {${compiler.openmp_version} ne ""} {
                 ui_debug "Adding depends_lib port:libomp"

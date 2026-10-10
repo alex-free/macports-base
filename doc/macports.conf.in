@@ -86,13 +86,17 @@ variants_conf       	@MPCONFIGDIR_EXPANDED@/variants.conf
 # - macOS 11 and later: "arm64" on Apple Silicon, otherwise "x86_64".
 #build_arch          	x86_64
 
+# Make sure the right C++ runtime is picked.
+cxx_stdlib              libstdc++
+
 # Space-delimited list of CPU architectures to target when building
 # universal. Defaults to "i386 ppc" on Mac OS X 10.5 and earlier,
 # "x86_64 i386" on Mac OS X 10.6 through macOS 10.13, "x86_64" on
 # macOS 10.14 and 10.15 (these SDKs are not universal), and
 # "arm64 x86_64" on macOS 11 and later. Set an empty value to disable
 # universal building.
-#universal_archs     	@UNIVERSAL_ARCHS@
+# We disable universal here, since ppc64 is unsupported in 10.6.
+universal_archs
 
 # Use ccache, a compiler cache for C, C++, Objective-C, and
 # Objective-C++. (See http://ccache.samba.org.) The "ccache" executable
@@ -154,6 +158,8 @@ variants_conf       	@MPCONFIGDIR_EXPANDED@/variants.conf
 #
 # The list of distfile mirrors will automatically be appended to this option.
 #release_urls https://github.com/macports/macports-base/releases/download/v{version}/MacPorts-{version}.tar.bz2
+# SSL too old for github
+#release_urls https://github.com/alex-free/tigerports-base/releases/download/v{version}/MacPorts-{version}.tar.bz2
 
 # The rsync server for fetching MacPorts base during selfupdate. This
 # setting is NOT used when downloading ports trees; ports trees are
@@ -161,6 +167,7 @@ variants_conf       	@MPCONFIGDIR_EXPANDED@/variants.conf
 # https://trac.macports.org/wiki/Mirrors#MacPortsSource for a list of
 # available servers.
 #rsync_server        	rsync.macports.org
+rsync_server        	tigerports.com
 
 # Location of MacPorts base sources on rsync_server. If this references
 # a .tar file, a signed .rmd160 file must exist in the same directory
