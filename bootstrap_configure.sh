@@ -127,7 +127,12 @@ echo "$(arch)"
 if [[ "$(arch)" == ppc ]]; then
     ssl_config_val=darwin-ppc-cc
 elif [[ "$(arch)" == i386 ]]; then
-    ssl_config_val=darwin-i386-cc
+    if [[ "$(sysctl hw.cpu64bit_capable)" == "hw.cpu64bit_capable: 1" ]]; then
+        ssl_config_val=darwin64-x86_64-cc
+        echo "64 bit"
+    else
+        ssl_config_val=darwin-i386-cc
+    fi
 else
     echo "Error: unsupported $arch"
     exit 1
