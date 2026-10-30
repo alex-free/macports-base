@@ -21,7 +21,9 @@ fi
 
 if [[ ! -e "~/.bash_profile" ]]; then                     
     echo "export TERM=xterm-color" > ~/.bash_profile
-    echo "export DISPLAY=:0.0" >> ~/.bash_profile
+    if [[ "$(uname -r | cut -d. -f1)" = "8" ]]; then
+        echo "export DISPLAY=:0.0" >> ~/.bash_profile
+    fi
     echo "source $prefix/share/macports/setupenv.bash" >> ~/.bash_profile
     echo "Wrote $HOME/.bash_profile, starting  a new shell for it to apply..."
     bash

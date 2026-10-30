@@ -9,7 +9,7 @@ rebuild_bootstrap=false
 cd "$(dirname "$0")"
 echo $PWD
 
-if [ "$(uname -r | cut -d. -f1)" = "8" ]; then
+if [[ "$(uname -r | cut -d. -f1)" = "8" ]]; then
     tiger=true
 else
     tiger=false

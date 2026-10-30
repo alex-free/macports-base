@@ -1,7 +1,7 @@
 #!/bin/bash
 
 base_sec=~/dev/tigerports-keys/tigerports-base-2027.sec
-version=2.12.6.001
+version=2.12.6.002
 
 if [[ ! -e "$base_sec" ]]; then
     echo "Error: can not find $base_sec"
